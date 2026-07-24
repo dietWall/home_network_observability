@@ -1,0 +1,11 @@
+---
+# Demo role defaults
+demo_commands:
+  - echo "Hello from Ansible!"
+  - echo "Current user: $(whoami)"
+  - echo "Working directory: $(pwd)"
+  - ls -la
+
+# Toggles detailed output of facts (much output)
+# if declared here, we can use DEMO_DETAILED=true molecule converge to enable it from the command line
+demo_detailed: false

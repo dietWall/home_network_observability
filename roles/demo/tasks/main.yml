@@ -1,0 +1,88 @@
+---
+# Demo Role Tasks
+# Purpose: Simple outputs to verify Ansible is working
+
+- name: Display demo title
+  ansible.builtin.debug:
+    msg: "This is a {{ demo_title }} Playbook, just to show how some outputs can be displayed"
+
+- name: Show Ansible version
+  ansible.builtin.debug:
+    msg: "Ansible version: {{ ansible_version.full }}"
+
+- name: Show Ansible connection type
+  ansible.builtin.debug:
+    msg: "Connection type: {{ ansible_connection }}"
+
+- name: Display demo status
+  ansible.builtin.debug:
+    msg: |
+      Starting to gather facts about the system
+      the ansible.builtin.setup is usually used in playbooks with gather_facts: true
+      But we can also collect facts manually in a task, to make sure we don´t crash
+      However: this is not recommended, unless we have changed some facts during the run
+      run ansible localhost -m ansible.builtin.setup to see all available facts on the console
+
+- name: Collect Facts
+  # explicitely gather facts, will be skipped if done already globally
+  ansible.builtin.setup:
+
+- name: Print all gathered facts - Runtime variables (local)
+  ansible.builtin.debug:
+    var: ansible_facts
+  when: demo_detailed
+
+- name: Show some selected system facts ()
+  ansible.builtin.debug:
+    msg:
+      - "OS-family: {{ ansible_facts['os_family'] }}"
+      - "Distribution: {{ ansible_facts['distribution'] }}"
+
+- name: We can skip tasks like this with "when statement"
+  ansible.builtin.debug:
+    msg: |
+      {% for key in ansible_facts.keys() | sort %}
+      =========================================
+      FACT: {{ key }}
+      =========================================
+      {{ ansible_facts[key] | ansible.builtin.to_nice_yaml(indent=2) }}
+      {% endfor %}
+  when: demo_detailed
+
+- name: Run a command
+  # this is an interesting point: time is a shell built-in,
+  # but ansible uses the executable here /usr/bin/time
+  # with -p, the output is same as we run it manually
+  ansible.builtin.command: time -p whoami
+  register: demo_command_output
+  changed_when: false
+
+- name: Show the output as var (whoami)
+  ansible.builtin.debug:
+    var: demo_command_output.stdout_lines
+
+- name: Show the output as var (time - writes to stderr)
+  ansible.builtin.debug:
+    var: demo_command_output.stderr_lines
+
+- name: Check sudo permissions
+  ansible.builtin.command: whoami
+  become: true
+  register: demo_sudo_check_result
+  changed_when: false
+  ignore_errors: true        # Verhindert den Abbruch bei "Permission denied" oder falschem Passwort
+  ignore_unreachable: true   # Verhindert den Abbruch bei einem Sudo-Timeout (12s)
+
+- name: Zeige das Sudo-Ergebnis an
+  ansible.builtin.debug:
+    var: demo_sudo_check_result.stdout
+
+- name: Show the output as msg
+  ansible.builtin.debug:
+    msg: |
+      "Output as message: {{ demo_command_output.stdout_lines }}"
+      "{{ demo_command_output.stderr_lines }}"
+
+- name: Output as JSON
+  ansible.builtin.debug:
+    msg: "{{ demo_command_output.stdout_lines | ansible.builtin.to_nice_json(indent=2) }}"

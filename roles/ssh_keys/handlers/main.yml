@@ -1,0 +1,8 @@
+---
+# roles/ssh_keys/handlers/main.yml
+
+- name: Restart SSH service
+  ansible.builtin.systemd_service:
+    name: ssh
+    state: restarted
+  become: true

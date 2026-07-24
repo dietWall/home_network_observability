@@ -1,0 +1,58 @@
+---
+driver:
+  name: default
+platforms:
+  - name: localhost
+    hosts: localhost
+    connection: local
+provisioner:
+  # formerly there were different provisioners, but they are gone in molecule
+  name: ansible
+  env:
+    # Role search path: this declaration overwrites molecule.yml and ansible.cfg
+    # since we want to have a global declaration for this role, this is commented out, but kept as future reference
+    # ANSIBLE_ROLES_PATH: "$MOLECULE_EPHEMERAL_DIRECTORY/roles:$MOLECULE_PROJECT_DIRECTORY/roles:../../roles"
+    ANSIBLE_CALLBACK_RESULT_FORMAT: "yaml"
+    ANSIBLE_DISPLAY_FAILED_STDERR: "true"
+    # Forces Molecule/Ansible to use the centralized ansible.cfg
+    # instead of the auto-generated file inside the temporary cache folder.
+    ANSIBLE_CONFIG: "$MOLECULE_PROJECT_DIRECTORY/ansible.cfg"
+  config:
+    timeout: 120
+    inventory:
+      defaults:
+        ansible_python_interpreter: ansible-posix.get_env PATH python
+        ansible_connection: ssh
+        ansible_user: ubuntu
+        ansible_become: true
+        ansible_become_method: sudo
+      groups:
+        all:
+          docker_host_ip: '172.17.0.1'
+          ansible_user: ubuntu
+          ansible_become: true
+          ansible_become_method: sudo
+
+  ansible_args:
+    # passes extra vars at playbook call to allow dynamic configuration of the demo role
+    # since this is run from molecule, we need to lookup the environment var and make type conversions
+    - --extra-vars
+    - "demo_detailed_raw={{ lookup('env', 'DEMO_DETAILED') | default('false', true) }}"
+
+verifier:
+  name: ansible
+
+scenario:
+# converge is succesful without this scenario statement.
+# but ther are warnings about missing playbooks, because molecule has default values
+# this declaration removes the warnings
+  name: default
+  # localhost only - we dont need to create or destroy something here
+  create_sequence: []
+  destroy_sequence: []
+  # this is the converge sequence
+  converge_sequence:
+    - converge
+  test_sequence:
+    - syntax
+    - converge

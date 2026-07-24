@@ -1,0 +1,16 @@
+---
+# Default variables for ansible-docker-install role
+
+# Docker version constraints (optional)
+docker_install_ce_version: "latest"
+
+# Docker-related packages to install
+# default
+docker_install_base_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+docker_install_additional_packages: []

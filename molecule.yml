@@ -1,0 +1,9 @@
+# global provisioner declaration 
+# overwritten by local yml files in molecule/[default|ubuntu]/molecule.yml
+# by using all or nothing strategy, if provisioner is redeclared in a local file 
+# with only a subset of the settings, there will be errors
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_CALLBACK_RESULT_FORMAT: "yaml"
+    ANSIBLE_DISPLAY_FAILED_STDERR: "true"

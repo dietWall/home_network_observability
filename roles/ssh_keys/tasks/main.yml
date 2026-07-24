@@ -1,0 +1,36 @@
+---
+# roles/ssh_keys/tasks/main.yml
+
+- name: Ensure .ssh directory exists for the user
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/.ssh"
+    state: directory
+    mode: '0700'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Deploy public SSH key to authorized_keys
+  ansible.posix.authorized_key:
+    user: "{{ ansible_user }}"
+    state: present
+    # We look up the public key file dynamically from the host machine
+    key: "{{ lookup('file', ssh_public_key_file) }}"
+  notify: Restart SSH service
+
+- name: Ensure SSH server configuration allows key authentication
+  # This was missing on first tests
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  loop:
+    - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication yes' }
+    - { regexp: '^#?AuthorizedKeysFile', line: 'AuthorizedKeysFile .ssh/authorized_keys' }
+    - { regexp: '^#?UsePAM', line: 'UsePAM no' }
+  notify: Restart SSH service
+  become: true
+
+# for reference: this restart ssh immediately, instead via handlers:
+# - name: Flush handlers immediately to restart SSH right now
+#   ansible.builtin.meta: flush_handlers

@@ -1,0 +1,27 @@
+---
+# this is a complete example, that "connects" to localhost and runs the demo role
+- name: SSH Connectivity Test
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    demo_detailed: "{{ demo_detailed_raw | default('false') | bool }}"
+  pre_tasks:
+    - name: Dump effective Ansible Roles Path
+      ansible.builtin.shell: >-
+        ansible-config dump | grep DEFAULT_ROLES_PATH | sed 's/\\x1b\\[[0-9;]*m//g'
+      args:
+        executable: /bin/bash
+      register: config_dump
+      changed_when: false
+
+    - name: "print internals"
+      ansible.builtin.debug:
+        msg: |
+          "Print demo_detailed:  {{ demo_detailed | default('UNDEFINED') }}"
+          "type of the variable: {{ demo_detailed | type_debug }}"
+          "Print role path: {{ config_dump.stdout }}"
+  roles:
+    - role: demo
+  tasks:
+

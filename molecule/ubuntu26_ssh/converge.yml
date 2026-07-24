@@ -1,0 +1,50 @@
+---
+- name: Converge - Run Demo Role
+  hosts: all
+  gather_facts: true
+  vars:
+    demo_detailed: "{{ demo_detailed_raw | default('false') | bool }}"
+    ansible_python_interpreter: auto_silent
+    # since we know from this scenario that your_server is a docker container,
+    # we can adapt some variables here
+    ansible_host: 127.0.0.1
+    ansible_port: 2222
+    ansible_connection: ssh
+    ansible_ssh_private_key_file: "{{ lookup('env', 'ANSIBLE_PRIVATE_KEY_FILE') }}"
+
+  pre_tasks:
+    - name: Dump effective Ansible Roles Path
+      ansible.builtin.shell: >-
+        ansible-config dump | grep DEFAULT_ROLES_PATH | sed 's/\\x1b\\[[0-9;]*m//g'
+      args:
+        executable: /bin/bash
+      register: config_dump
+      changed_when: false
+
+    - name: "print internals"
+      ansible.builtin.debug:
+        msg: |
+          "Print demo_detailed:  {{ demo_detailed | default('UNDEFINED') }}"
+          "type of the variable: {{ demo_detailed | type_debug }}"
+          "Print role path: {{ config_dump.stdout }}"
+
+    - name: Show Warning if required env variables not set
+      ansible.builtin.debug:
+        msg: "WARN: Env Var MOLECULE_HOST_VARS_DIR not found. Did you source .env??"
+      when: lookup('ansible.builtin.env', 'MOLECULE_HOST_VARS_DIR') == ''
+
+  roles:
+    - role: demo
+
+  tasks:
+    - name: "Execute the SSH key distribution role"
+      ansible.builtin.include_role:
+        name: "ssh_keys"
+
+    - name: "Basis-Rolle: Docker-Engine installieren"
+      ansible.builtin.include_role:
+        name: "docker_install"
+
+    - name: "Monitoring-Rolle: Prometheus Server starten"
+      ansible.builtin.include_role:
+        name: "nginx_docker"

@@ -1,0 +1,107 @@
+---
+- name: Prepare Container - add SSH and configure specific inventory user
+  hosts: all
+  gather_facts: false
+  vars:
+    # without this root declaration, the variable ansible_user will be overwritten
+    # during inventory loading
+    ansible_connection: docker
+    ansible_user: root
+    ansible_become: false
+
+  tasks:
+    - name: "Security check: Verify host exists in real inventory"
+      ansible.builtin.fail:
+        msg: >
+          ERROR: The host '{{ inventory_hostname }}' was not found in the loaded
+          groups of your real inventory (production.yml). Please add the host there.
+      # If the host does not exist in the 'all' group of your real inventory,
+      # the playbook will exit immediately with the above clear message.
+      when: inventory_hostname not in groups['all']
+
+    - name: Print User
+      ansible.builtin.debug:
+        msg: "Current user is: {{ ansible_user }}"
+
+    - name: Install OpenSSH Server and testing utilities
+      ansible.builtin.apt:
+        name:
+          - openssh-server
+          - time
+          - sudo
+        state: present
+        update_cache: true
+
+    - name: Enable password authentication in sshd_config
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication yes'
+        state: present
+
+    - name: Print paths
+      ansible.builtin.debug:
+        msg: |
+          vault: {{ playbook_dir ~ '/../../inventory/host_vars/' ~ inventory_hostname ~ '/vault.yml' }}
+          host: {{ playbook_dir ~ '/../../inventory/host_vars/' ~ inventory_hostname ~ '/' ~ inventory_hostname ~ '.yml' }}
+
+    # Load encrypted vault variables
+    - name: "Load encrypted vault variables"
+      ansible.builtin.include_vars:
+        # Uses the clean, absolute path from the environment variable
+        file: "{{ lookup('env', 'MOLECULE_HOST_VARS_DIR') }}/{{ inventory_hostname }}/vault.yml"
+
+    # WARNING: Do NOT remove 'name: real_vars'.
+    # Directly including this file would globally overwrite 'ansible_user' with the production user.
+    # Since that user doesn't exist yet in this fresh container, Docker would immediately
+    # reject all subsequent tasks with a connection/tmp permission error.
+    # Packaging it inside 'real_vars' keeps our active 'root' connection alive.
+    - name: "Load unencrypted host variables into isolated namespace"
+      ansible.builtin.include_vars:
+        file: "{{ lookup('env', 'MOLECULE_HOST_VARS_DIR') }}/{{ inventory_hostname }}/{{ inventory_hostname }}.yml"
+        name: real_vars
+
+    # Debug: verify the loading sequence has been working
+    - name: Read User again (check if changes)
+      ansible.builtin.command: whoami
+      register: current_user
+      changed_when: false
+
+    - name: Show current active user
+      ansible.builtin.debug:
+        msg:
+          - "Var: 'ansible_user': {{ ansible_user }}"
+          - "current user {{ current_user.stdout }}"
+          - "User to create: {{ real_vars.ansible_user }}"
+
+    # User configuration: based on loaded real_vars
+    - name: Create the production user inside the container
+      ansible.builtin.user:
+        name: "{{ real_vars.ansible_user }}"
+        shell: /bin/bash
+        groups: sudo
+        append: true
+
+    - name: Create the production user inside the container
+      ansible.builtin.user:
+        name: "{{ real_vars.ansible_user }}"
+        shell: /bin/bash
+        groups: sudo
+        append: true
+        # Hash the plaintext password from your vault for Linux
+        password: "{{ vault_password | password_hash('sha512') }}"
+        password_lock: false
+
+    - name: "Grant sudo rights WITH password prompt for: {{ real_vars.ansible_user }}"
+      ansible.builtin.lineinfile:
+        path: "/etc/sudoers.d/{{ real_vars.ansible_user }}"
+        # NOTE: We remove NOPASSWD. Ubuntu now requires password prompt!
+        line: "{{ real_vars.ansible_user }} ALL=(ALL) ALL"
+        state: present
+        mode: '0440'
+        create: true
+
+    - name: Force restart SSH service to apply config
+      ansible.builtin.service:
+        name: ssh
+        state: restarted

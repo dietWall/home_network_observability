@@ -1,0 +1,30 @@
+---
+- name: Converge - Run Demo Role
+  hosts: all
+  gather_facts: true  # Collect Ubuntu system facts before role execution
+  vars:
+    demo_detailed: "{{ demo_detailed_raw | default('false') | bool }}"
+    ansible_python_interpreter: auto_silent
+
+  pre_tasks:
+    - name: Dump effective Ansible Roles Path
+      ansible.builtin.shell: >-
+        ansible-config dump | grep DEFAULT_ROLES_PATH | sed 's/\\x1b\\[[0-9;]*m//g'
+      args:
+        executable: /bin/bash
+      register: config_dump
+      changed_when: false
+
+    - name: "print internals"
+      ansible.builtin.debug:
+        msg: |
+          "Print demo_detailed:  {{ demo_detailed | default('UNDEFINED') }}"
+          "type of the variable: {{ demo_detailed | type_debug }}"
+          "Print role path: {{ config_dump.stdout }}"
+  roles:
+    - role: demo
+  tasks:
+
+    - name: "Execute the SSH key distribution role"
+      ansible.builtin.include_role:
+        name: "ssh_keys"

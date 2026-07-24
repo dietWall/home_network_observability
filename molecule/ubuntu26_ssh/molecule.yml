@@ -1,0 +1,20 @@
+---
+dependency:
+  name: galaxy
+  enabled: false
+driver:
+  name: default  # Prevents Molecule from trying to create instances
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_CONFIG: "$MOLECULE_PROJECT_DIRECTORY/ansible.cfg"
+
+  inventory:
+    links:
+      # Links to the real git submodule inventory for this scenario
+      hosts: "${MOLECULE_HOSTS_FILE}"
+      group_vars: "${MOLECULE_GROUP_VARS_DIR}"
+      host_vars: "${MOLECULE_HOST_VARS_DIR}"
+
+platforms:
+  - name: your-server  # Represents your real target server in the inventory

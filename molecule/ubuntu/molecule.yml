@@ -1,0 +1,57 @@
+---
+# ==============================================================================
+# MOLECULE SCENARIO CONFIGURATION: Dynamic Inventory-Driven Sandbox (Docker)
+# ==============================================================================
+dependency:
+  name: galaxy
+  enabled: false
+
+driver:
+  name: docker
+
+platforms:
+  - name: your-server
+    image: geerlingguy/docker-ubuntu2604-ansible:latest
+    pre_build_image: true
+    command: /lib/systemd/systemd
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - /var/lib/docker-molecule-${MOLECULE_INSTANCE_NAME}:/var/lib/docker:rw
+      - /var/lib/containerd-molecule-${MOLECULE_INSTANCE_NAME}:/var/lib/containerd:rw
+    cgroupns_mode: host
+    published_ports:
+      - "0.0.0.0:2222:22/tcp"
+    connection: docker
+    ansible_python_interpreter: auto_silent
+
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_REMOTE_TMP: /tmp
+    ANSIBLE_CALLBACK_RESULT_FORMAT: "yaml"
+    ANSIBLE_DISPLAY_FAILED_STDERR: "true"
+    ANSIBLE_CONFIG: "$MOLECULE_PROJECT_DIRECTORY/ansible.cfg"
+    ANSIBLE_INTERPRETER_PYTHON: auto_silent
+
+  # THIS IS WHERE THE REAL INVENTORY LINKS:
+  inventory:
+    links:
+      hosts: "${MOLECULE_HOSTS_FILE}"
+      group_vars: "${MOLECULE_GROUP_VARS_DIR}"
+      host_vars: "${MOLECULE_HOST_VARS_DIR}"
+
+  host_vars:
+    your_server:
+      # this is the initial user to start the playbooks
+      ansible_connection: docker
+      ansible_user: root
+      ansible_become: false  # disable sudo, we run as root here
+      ansible_python_interpreter: /usr/bin/python3
+
+  playbooks:
+    prepare: prepare.yml
+    converge: converge.yml
+
+verifier:
+  name: ansible

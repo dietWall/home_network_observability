@@ -1,0 +1,5 @@
+---
+# Role-specific variables for ansible-docker-install role
+
+# Docker version pin (leave empty for latest)
+docker_install_ce_version_pinned: "{{ docker_ce_version | default('') }}"

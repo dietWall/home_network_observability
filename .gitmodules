@@ -1,0 +1,3 @@
+[submodule "ansible_template/inventory"]
+	path = ansible_template/inventory
+	url = https://github.com/dietWall/ansible_inventory_template.git

@@ -1,0 +1,5 @@
+---
+# Demo role handlers
+- name: Print demo complete
+  ansible.builtin.debug:
+    msg: "Demo completed successfully!"

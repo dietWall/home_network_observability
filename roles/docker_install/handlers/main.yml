@@ -1,0 +1,8 @@
+---
+# Handlers for ansible-docker-install role
+
+- name: Restart Docker service
+  ansible.builtin.systemd:
+    name: docker
+    state: restarted
+  become: true
