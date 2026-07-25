@@ -17,4 +17,4 @@ provisioner:
       host_vars: "${MOLECULE_HOST_VARS_DIR}"
 
 platforms:
-  - name: your-server  # Represents your real target server in the inventory
+  - name: zeus-lat  # Represents your real target server in the inventory

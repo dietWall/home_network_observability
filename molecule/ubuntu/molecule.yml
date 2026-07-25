@@ -10,7 +10,7 @@ driver:
   name: docker
 
 platforms:
-  - name: your-server
+  - name: zeus-lat
     image: geerlingguy/docker-ubuntu2604-ansible:latest
     pre_build_image: true
     command: /lib/systemd/systemd
@@ -42,7 +42,7 @@ provisioner:
       host_vars: "${MOLECULE_HOST_VARS_DIR}"
 
   host_vars:
-    your_server:
+    zeus-lat:
       # this is the initial user to start the playbooks
       ansible_connection: docker
       ansible_user: root
