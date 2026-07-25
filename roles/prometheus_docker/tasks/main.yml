@@ -1,0 +1,192 @@
+---
+# Prometheus installation tasks
+
+- name: Set prometheus_targets for validation from global group_vars
+  ansible.builtin.set_fact:
+    # Fetch data directly from the all.yml in the project directory
+    prometheus_targets: "{{ prometheus_scrape_targets | map(attribute='exporters') | flatten }}"
+
+- name: Debug the loaded exporter configuration
+  ansible.builtin.debug:
+    msg:
+      - "=== PROMETHEUS CONFIG CHECK ==="
+      - "Number of monitored hosts: {{ prometheus_scrape_targets | length }}"
+      - "Total number of jobs to generate (Targets): {{ prometheus_targets | length }}"
+      - "Found exporter types: {{ prometheus_targets | map(attribute='type') | unique | list }}"
+
+- name: Install required system packages
+  ansible.builtin.apt:
+    name:
+      - python3-docker  # Required for community.docker module
+    state: present
+    update_cache: true
+  become: true
+
+- name: Pull Prometheus Docker image
+  ansible.builtin.command:
+    cmd: docker pull prom/prometheus:latest
+  changed_when: not docker_pull_result.changed
+  register: docker_pull_result
+
+- name: Ensure Prometheus host directories exist with correct permissions
+  ansible.builtin.file:
+    path: "{{ item.host_path }}"
+    state: directory
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.group | default('root') }}"
+    mode: '0755'
+  become: true
+  loop: "{{ prometheus_volumes }}"
+
+- name: Generate Prometheus configuration from template
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: /opt/prometheus/config/prometheus.yml
+    owner: "65534"
+    group: "65534"
+    mode: '0644'
+  become: true
+  notify: Reload Prometheus config
+
+- name: Read generated prometheus.yml content
+  ansible.builtin.slurp:
+    src: /opt/prometheus/config/prometheus.yml
+  register: prometheus_config_encoded
+  become: true
+
+- name: Print generated prometheus.yml to output
+  ansible.builtin.debug:
+    msg: "{{ prometheus_config_encoded.content | b64decode }}"
+
+- name: Copy Prometheus systemd unit file
+  ansible.builtin.template:
+    src: prometheus.service.j2
+    dest: /etc/systemd/system/prometheus.service
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+  become: true
+  notify: Restart Prometheus service
+
+# we are checking the results below
+# lets make sure the changes are applied
+- name: Flush handlers to apply Prometheus configuration changes immediately
+  ansible.builtin.meta: flush_handlers
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+
+- name: Enable and start Prometheus systemd service
+  ansible.builtin.systemd:
+    name: prometheus
+    enabled: true
+    state: started
+  become: true
+
+- name: Verify Prometheus container is running
+  community.docker.docker_container_info:
+    name: prometheus
+  register: result
+  until: result.exists and result.container.State.Running
+  retries: 10
+  delay: 1
+
+- name: Wait for Prometheus web interface to become active
+  ansible.builtin.uri:
+    url: "http://localhost:9090"
+    status_code: [200, 302]  # Both codes indicate Prometheus is accessible
+  register: prometheus_health
+  # Accepts 200 or 302 for the retry condition
+  until: prometheus_health.status == 200 or prometheus_health.status == 302
+  retries: 30
+  delay: 1
+
+- name: Display Prometheus health status
+  ansible.builtin.debug:
+    msg:
+      - "Prometheus is up and healthy!"
+      - "HTTP Status Code: {{ prometheus_health.status }}"
+      - "Attempts: {{ prometheus_health.attempts }} seconds to reach stable state"
+
+# =============================================
+# PROMETHEUS CONFIGURATION VALIDATION
+# =============================================
+# We verify the loaded configuration in Prometheus memory, independent of
+# the online status (up/down) of target servers.
+#
+# CURRENT LOGIC (1 Job = 1 Target):
+# Since each target from the YAML file gets its own 'job_name' in the template,
+# the number of jobs exactly equals the number of configured target systems.
+#
+# FUTURE EXTENSION (Multiple IPs per Job):
+# If your 'scrape_targets.yml' is extended to have a job with multiple entries
+# in the 'targets' list, the simple job counter will fail. In that case,
+# all IPs across all jobs must be summed.
+#
+# The future 'that' condition for nested targets would look like:
+# that: >
+  # (prometheus_config_response.json.data.yaml | from_yaml).scrape_configs |
+  # map(attribute='static_configs') |
+  # flatten |
+  # map(attribute='targets') |
+  # flatten |
+  # length == (prometheus_targets | length)
+# =============================================
+
+- name: Query Prometheus configuration status
+  ansible.builtin.uri:
+    url: "http://localhost:9090/api/v1/status/config"
+    method: GET
+    return_content: true
+    status_code: 200
+  register: prometheus_config_response
+  # Wait until the API responds with the "scrape_configs" YAML field
+  until: >
+    prometheus_config_response.status == 200 and
+    (prometheus_config_response.json.data.yaml | from_yaml).scrape_configs is defined
+  retries: 10
+  delay: 2
+
+- name: Verify that Prometheus configuration contains correct target count
+  ansible.builtin.assert:
+    that:
+      # We count the exporter jobs + 1 (for the local 'prometheus' job)
+      - (prometheus_config_response.json.data.yaml | from_yaml).scrape_configs | length == (prometheus_targets | length + 1)
+    fail_msg: >
+      Target count mismatch in configuration!
+      Expected: {{ prometheus_targets | length + 1 }} configured jobs (incl. local Prometheus).
+      Found in Prometheus running config: {{ (prometheus_config_response.json.data.yaml | from_yaml).scrape_configs | length }} jobs.
+    success_msg: "Success! Prometheus has correctly loaded all {{ prometheus_targets | length + 1 }} jobs into its configuration."
+
+# ==============================================================================
+# PROMETHEUS TARGETS HEALTH REPORT
+# ==============================================================================
+
+- name: Wait for the scrape interval to expire so Prometheus can query the targets
+  ansible.builtin.pause:
+    seconds: "{{ prometheus_docker_global_scrape_interval | regex_replace('[^0-9]', '') | int + 2 }}"
+  # Takes e.g. the 15 from "15s" and adds 2 seconds buffer for the API
+
+- name: Query the current target status from the API
+  ansible.builtin.uri:
+    url: "http://localhost:9090/api/v1/targets"
+    method: GET
+    return_content: true
+    status_code: 200
+  register: prometheus_targets_api
+
+- name: Generate the Prometheus status report
+  ansible.builtin.set_fact:
+    prometheus_status_report: >-
+      {% set report = [] %}
+      {% for target in prometheus_targets_api.json.data.activeTargets %}
+        {% set _ = report.append('scrapeURL: ' ~ target.scrapeUrl ~ ', health: ' ~ target.health) %}
+      {% endfor %}
+      {{ report }}
+
+- name: "PROMETHEUS CONFIG & SCRAPE REPORT"
+  ansible.builtin.debug:
+    msg: "{{ prometheus_status_report }}"

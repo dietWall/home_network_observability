@@ -1,0 +1,12 @@
+---
+prometheus_volumes:
+  # configuration
+  - host_path: "/opt/prometheus/config"
+    container_path: "/etc/prometheus"
+    owner: "65534"
+    group: "65534"
+  # Metrics database
+  - host_path: "/opt/prometheus/data"
+    container_path: "/prometheus"
+    owner: "65534"
+    group: "65534"

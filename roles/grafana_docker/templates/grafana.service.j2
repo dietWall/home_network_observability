@@ -1,0 +1,27 @@
+[Unit]
+Description=Grafana Monitoring Dashboard
+After=network.target docker.socket
+Requires=docker.socket
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker rm -f grafana
+
+# Lädt die Variablen sicher in den Systemd-Kontext
+EnvironmentFile=/opt/grafana/grafana.env
+
+ExecStart=/usr/bin/docker run --rm --name grafana \
+  --network monitoring_net \
+  -p 3000:3000 \
+  --env-file /opt/grafana/grafana.env \
+  {% for volume in grafana_docker_volumes %}-v {{ volume.host_path }}:{{ volume.container_path }} {% endfor %} \
+  grafana/grafana:latest
+
+ExecStop=/usr/bin/docker stop -t 2 grafana
+Restart=on-failure
+RestartSec=5s
+Environment=DOCKER_HOST=unix:///var/run/docker.sock
+Environment=DOCKER_DEFAULT_PLATFORM=linux/amd64
+
+[Install]
+WantedBy=multi-user.target

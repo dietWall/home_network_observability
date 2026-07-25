@@ -22,6 +22,9 @@ platforms:
     cgroupns_mode: host
     published_ports:
       - "0.0.0.0:2222:22/tcp"
+      - "3000:3000/tcp"  # Grafana Dashboard (http://localhost:3000)
+      - "9090:9090/tcp"  # Prometheus UI   (http://localhost:9090)
+      - "9100:9100/tcp"  # Node Exporter   (http://localhost:9100/metrics)
     connection: docker
     ansible_python_interpreter: auto_silent
 

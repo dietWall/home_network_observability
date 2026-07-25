@@ -1,0 +1,30 @@
+---
+# Handlers for loki_alloy role
+
+- name: Restart Loki service
+  community.docker.docker_container:
+    name: loki
+    state: restarted
+
+- name: Restart Alloy service
+  community.docker.docker_container:
+    name: alloy
+    state: restarted
+
+- name: Reload Loki configuration
+  community.docker.docker_container:
+    name: loki
+    cmd: "curl -s http://localhost:3100/loki/api/v1/admin/ready"
+  ignore_errors: true
+
+- name: Loki Dienst neustarten
+  ansible.builtin.systemd:
+    name: loki
+    state: restarted
+  become: true
+
+- name: Alloy Dienst neustarten
+  ansible.builtin.systemd:
+    name: alloy
+    state: restarted
+  become: true

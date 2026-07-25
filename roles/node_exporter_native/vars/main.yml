@@ -1,0 +1,14 @@
+---
+# Variables for the Node Exporter role
+node_exporter_native_config_file: "/etc/default/prometheus-node-exporter"
+
+node_exporter_native_collectors:
+  enabled:
+    - cpu
+    - meminfo
+    - diskstats
+    - filesystem
+    - netdev
+  disabled:
+    - btrfs
+    - infiniband

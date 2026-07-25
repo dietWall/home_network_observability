@@ -1,0 +1,33 @@
+---
+- name: Install Node Exporter from official APT repository
+  ansible.builtin.apt:
+    name: prometheus-node-exporter
+    state: present
+    update_cache: true
+  become: true
+
+- name: Configure Node Exporter collectors
+  ansible.builtin.template:
+    src: prometheus-node-exporter.j2
+    dest: "{{ node_exporter_native_config_file }}"
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  notify: Restart Node Exporter service
+
+- name: Ensure Node Exporter service is enabled and started
+  ansible.builtin.systemd:
+    name: prometheus-node-exporter
+    enabled: true
+    state: started
+  become: true
+
+- name: Wait for Node Exporter metrics interface to become ready
+  ansible.builtin.uri:
+    url: "http://localhost:9100/metrics"
+    status_code: 200
+  register: node_exporter_native_health
+  until: node_exporter_native_health.status == 200
+  retries: 15
+  delay: 1

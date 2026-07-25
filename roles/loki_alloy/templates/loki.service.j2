@@ -1,0 +1,24 @@
+[Unit]
+Description=Grafana Loki Log Aggregation System
+After=network.target docker.socket
+Requires=docker.socket
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker rm -f loki
+
+ExecStart=/usr/bin/docker run --rm --name loki \
+  --network monitoring_net \
+  -p 3100:3100 \
+  -v /opt/loki/config/loki.yml:/etc/loki/loki.yml:ro \
+  -v /opt/loki/data:/tmp/loki:rw \
+  grafana/loki:latest
+
+ExecStop=/usr/bin/docker stop -t 10 loki
+Restart=on-failure
+RestartSec=5s
+Environment=DOCKER_HOST=unix:///var/run/docker.sock
+Environment=DOCKER_DEFAULT_PLATFORM=linux/amd64
+
+[Install]
+WantedBy=multi-user.target
