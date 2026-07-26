@@ -40,16 +40,6 @@
   become: true
   notify: Restart Grafana service
 
-- name: Copy Grafana datasource provisioning configuration
-  ansible.builtin.template:
-    src: datasources.yml.j2
-    dest: "{{ grafana_docker_datasources_volume.host_path }}/monitoring_sources.yml"
-    owner: "472"
-    group: "472"
-    mode: '0640'
-  become: true
-  notify: Restart Grafana service
-
 - name: Copy Grafana systemd unit file
   ansible.builtin.template:
     src: grafana.service.j2
@@ -99,42 +89,3 @@
       - "Grafana is up and healthy!"
       - "HTTP Status Code: {{ grafana_docker_health.status }}"
       - "Attempts: {{ grafana_docker_health.attempts }} seconds to reach stable state"
-
-# ====================================================================
-# API-ABFRAGEN: Jetzt mit dynamischen Vault-Variablen statt "admin"
-# ====================================================================
-- name: Abfrage der registrierten Datenquellen via Grafana API
-  ansible.builtin.uri:
-    url: "http://localhost:3000/api/datasources"
-    method: GET
-    user: "{{ vault_grafana_admin_user }}"
-    password: "{{ vault_grafana_admin_password }}"
-    force_basic_auth: true
-    status_code: 200
-  register: grafana_api_datasources
-
-- name: Verbindung zu jeder Datenquelle prüfen (Health Check)
-  ansible.builtin.uri:
-    url: "http://localhost:3000/api/datasources/uid/{{ item.uid }}/health"
-    method: GET
-    user: "{{ vault_grafana_admin_user }}"
-    password: "{{ vault_grafana_admin_password }}"
-    force_basic_auth: true
-    status_code: 200
-  register: datasource_health_results
-  failed_when: false
-  loop: "{{ grafana_api_datasources.json }}"
-  loop_control:
-    label: "{{ item.name }}"
-
-- name: Ergebnis der Verbindungstests ausgeben oder warnen
-  ansible.builtin.debug:
-    msg: >-
-      {% if item.json is defined and item.json.status == 'success' %}
-      Datenquelle '{{ item.item.name }}' ist ERREICHBAR ({{ item.json.message }}).
-      {% else %}
-      [WARNUNG] Datenquelle '{{ item.item.name }}' ist NICHT ERREICHBAR oder antwortet mit Fehlern!
-      {% endif %}
-  loop: "{{ datasource_health_results.results }}"
-  loop_control:
-    label: "{{ item.item.name }}"

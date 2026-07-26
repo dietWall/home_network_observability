@@ -6,13 +6,6 @@ grafana_docker_data_volume:
   owner: "472"
   group: "472"
 
-grafana_docker_datasources_volume:
-  host_path: "/opt/grafana/provisioning/datasources"
-  container_path: "/etc/grafana/provisioning/datasources"
-  owner: "472"
-  group: "472"
-
 # Kombinierte Liste NUR für das Systemd-Template
 grafana_docker_volumes:
   - "{{ grafana_docker_data_volume }}"
-  - "{{ grafana_docker_datasources_volume }}"
