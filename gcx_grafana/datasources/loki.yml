@@ -1,0 +1,12 @@
+---
+apiVersion: provisioning.grafana.app/v0alpha1
+kind: DataSource
+
+metadata:
+  name: loki
+
+spec:
+  title: Loki
+  type: loki
+  uid: loki
+  url: http://loki:3100

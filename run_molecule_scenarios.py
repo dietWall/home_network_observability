@@ -1,242 +1,148 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Molecule Scenario Runner
-========================
 
-Runs all Molecule scenarios in the correct order with proper failure handling.
-Stops immediately if any scenario fails.
-
-Workflow order:
-1. default (localhost) - quick tests on host
-2. ubuntu (Docker container) - prepares and caches container
-3. ubuntu26_ssh - tests roles via SSH to cached container
-
-Each scenario runs: prepare -> converge -> (optional: verify -> syntax -> test)
-
-Usage:
-    ./run_molecule_scenarios.py all   # Run all scenarios (current implementation)
-    ./run_molecule_scenarios.py clean # Clean up: destroy containers and remove temp dir
-"""
-
-import argparse
+import shlex
 import subprocess
 import sys
-import shutil
-import os
-from pathlib import Path
 
-# Add script directory to path for molecule command lookup
-SCRIPT_DIR = Path(__file__).parent.resolve()
+VERBOSE = False
 
+def repo_root():
+    result = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True)
+    print(result.stdout.decode().strip())
+    return result.stdout.decode().strip()
 
-class MoleculeScenarioError(Exception):
-    """Custom exception for Molecule scenario failures."""
-    pass
+COMMANDS = {
+    # if we expect a different returncode than 0 from one of the commands
+    # than we can extend the data structure with expected_returncode (default 0)
 
+    "test": {
+        "description": "Reruns the ubuntu scenario without a full rebuild",
+        "steps": [
+            "molecule converge -s ubuntu26_ssh",
+            ],
+        },
 
-def run_command(cmd: list[str], description: str, check: bool = True) -> subprocess.CompletedProcess:
-    """
-    Run a shell command and return the result.
+    "rebuild_ubuntu": {
+        "description": "Recreate the whole environment",
+        "steps": [
+            "molecule destroy -s ubuntu",
+            "molecule create -s ubuntu",
+            "molecule converge -s ubuntu",
+            "molecule converge -s ubuntu26_ssh",
+            ],
+        },
 
-    Args:
-        cmd: List of command arguments
-        description: Human-readable description for error messages
-        check: If True, raise exception on non-zero exit code
+        "quick_test": {
+        "description": "Runs some common linux commands",
+        "steps": [
+            "pwd",
+            "ls -la",
+            "whoami",
+            "non_existing_binary_to_see_error_processing"
+            ],
+        },
+        "setup_grafana" : {
+            "description": "creates a service account in grafana",
+            "steps" : [
+                f"{repo_root()}/gcx_grafana/create_service_account.py",
+                f"gcx datasources create -f {repo_root()}/gcx_grafana/datasources/datasources.yml",
+                f"gcx datasources create -f {repo_root()}/gcx_grafana/datasources/loki.yml",
+                # this works with my local file, but I need to remove the github pat from there first
+                # f"gcx resources push --path {repo_root()}/gcx_grafana/repository/github_dashboards.yml"
+            ]
+        }
+}
 
-    Returns:
-        CompletedProcess result
+# ==============================================================================
+# Runner
+# ==============================================================================
 
-    Raises:
-        MoleculeScenarioError: If command fails and check=True
-    """
-    print(f"\n{'='*60}")
-    print(f"Running: {description}")
-    print(f"Command: {' '.join(cmd)}")
-    print(f"{'='*60}\n")
-
+def run_command(command):
+    print(f">>> {command}")
     try:
         result = subprocess.run(
-            cmd,
-            cwd=SCRIPT_DIR,
-            check=check,
-            text=True,
-            capture_output=False,  # Print stdout/stderr directly
-            env={**os.environ, "MOLECULE_PROJECT_DIRECTORY": str(SCRIPT_DIR)}
+            shlex.split(command),
         )
+    except FileNotFoundError as error:
+        executable = shlex.split(command)[0]
+        print()
+        print("ERROR: Command not found")
+        print(f"  Executable: {executable}")
+        print(f"  Command:    {command}")
+        print(f"  Details:    {error}")
+        return False
+    except PermissionError as error:
+        executable = shlex.split(command)[0]
+        print()
+        print("ERROR: Permission denied")
+        print(f"  Executable: {executable}")
+        print(f"  Details:    {error}")
+        return False
+    except Exception as error:
+        executable = shlex.split(command)[0]
+        print()
+        print("ERROR: Unhandled Exception caught, please implement")
+        print(f"  Executable: {executable}")
+        print(f"  Details:    {error}")
+        print(f"  Type:       {type(error).__name__}")
+        return False
 
-        if result.returncode != 0:
-            print(f"\n❌ FAILED: {description}")
-            raise MoleculeScenarioError(f"Command failed with exit code {result.returncode}")
+    if VERBOSE:
+        print(f"  Return code from {command}: {result.returncode}")
 
-        return result
+    if result.returncode != 0:
+        print()
+        print("ERROR: Command failed")
+        print(f"  Exit code: {result.returncode}")
+        print(f"  Command:   {command}")
+        return False
+    return True
 
-    except subprocess.CalledProcessError as e:
-        print(f"\n❌ Command failed: {description}")
-        print(f"Exit code: {e.returncode}")
-        if e.output:
-            print(e.output)
-        raise
+def run_task(task_name):
 
-
-def clean_up():
-    """
-    Clean up: destroy molecule scenarios and remove temporary directories.
-    Removes the Docker container and ansible ephemeral directory.
-    """
-    print("="*60)
-    print("Cleaning up...")
-    print("="*60)
-
-    try:
-        # Destroy all molecule scenarios
-        print("\nDestroying molecule scenarios...")
-        destroy_cmd = ["molecule", "destroy", "-s", "default", "ubuntu", "ubuntu26_ssh"]
-        result = subprocess.run(
-            destroy_cmd,
-            cwd=SCRIPT_DIR,
-            check=False,
-            text=True,
-            capture_output=False
-        )
-
-        # Check if molecule destroy succeeded or if container doesn't exist
-        if result.returncode != 0 and "No containers found" not in result.stdout:
-            print(f"\n⚠️  Molecule destroy returned: {result.returncode}")
-            if result.stdout:
-                print(result.stdout)
-
-        # Remove the ephemeral molecule directory if it exists
-        ephemeral_dir = SCRIPT_DIR / ".molecule" / "ephemeral"
-        if ephemeral_dir.exists():
-            print(f"\nRemoving ephemeral directory: {ephemeral_dir}")
-            shutil.rmtree(ephemeral_dir)
-            print("Ephemeral directory removed.")
-        else:
-            print(f"\nNo ephemeral directory found at: {ephemeral_dir}")
-
-        # Remove cached container if it exists
-        cached_container = "ubuntu26-sandbox"
-        try:
-            import docker
-            client = docker.from_env()
-            containers = client.containers.filters({"name": cached_container})
-            if containers:
-                print(f"\nRemoving cached Docker container: {cached_container}")
-                client.containers.get(cached_container).remove()
-                print("Cached container removed.")
-            else:
-                print(f"\nNo cached Docker container found: {cached_container}")
-        except Exception as e:
-            print(f"\n⚠️  Could not remove cached container: {e}")
-
-        print("\n✅ Cleanup complete!")
-
-    except Exception as e:
-        print(f"\n❌ Cleanup error: {e}")
-        sys.exit(1)
-
-
-# Command arrays for each scenario
-# Each entry: (command_list, description)
-SCENARIO_COMMANDS: list[tuple[list[str], str]] = [
-    # =====================
-    # default scenario commands
-    # =====================
-    #(["molecule", "syntax", "-s", "default"], "Syntax check for default scenario"),
-    #(["molecule", "create", "-s", "default"], "Create scenario default"),
-    #(["molecule", "prepare", "-s", "default"], "Prepare scenario default"),
-    #(["molecule", "converge", "-s", "default"], "Converge scenario default"),
-
-    # =====================
-    # ubuntu scenario commands
-    # =====================
-    (["molecule", "destroy", "-s", "ubuntu"], "Make sure we have a clean start"),
-    (["molecule", "create", "-s", "ubuntu"], "Create scenario ubuntu"),
-    #(["molecule", "prepare", "-s", "ubuntu"], "Prepare scenario ubuntu (installs SSH, configures user)"),
-    (["molecule", "converge", "-s", "ubuntu"], "Converge scenario ubuntu (runs demo role)"),
-
-    # =====================
-    # ubuntu26_ssh scenario commands
-    # =====================
-    # Verify container exists before running SSH-based converge
-    (["docker", "ps", "-a", "-q", "-f", "name=ubuntu26-sandbox"], "Verify cached container exists"),
-    #(["molecule", "prepare", "-s", "ubuntu26_ssh"], "Prepare scenario ubuntu26_ssh"),
-    (["molecule", "converge", "-s", "ubuntu26_ssh"], "Converge scenario ubuntu26_ssh (runs demo + ssh_keys roles)"),
-]
-
+    task = COMMANDS[task_name]
+    print(f"=== {task['description']} ===")
+    for command in task["steps"]:
+        if not run_command(command):
+            return False
+    return True
 
 def main():
-    """
-    Main entry point for the Molecule scenario runner.
+    
+    workflow_help = "Available workflows:"
 
-    Runs scenarios in the correct order:
-    1. default (localhost) - quick tests
-    2. ubuntu (Docker) - prepares and caches container
-    3. ubuntu26_ssh - SSH role testing
+    for name, workflow in COMMANDS.items():
+        description = workflow.get("description", "")
+        workflow_help += f"  {name:<20} {description}\n"
 
-    Stops immediately if any scenario fails.
-    """
-    # Run all commands from the SCENARIO_COMMANDS array
-    # The docker ps verify command is skipped automatically
-    print("="*60)
-    print("  Molecule Scenario Runner")
-    print("="*60)
-    print()
-    print("This script runs Molecule scenarios in the correct order:")
-    print("  1. default  -> Quick tests on host (localhost)")
-    print("  2. ubuntu   -> Docker container preparation & cache")
-    print("  3. ubuntu26_ssh -> SSH role testing (uses cached container)")
-    print()
-    print("="*60)
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Run predefined Ansible and Molecule workflows.",
+        epilog=workflow_help,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
-    # Check for DEMO_DETAILED environment variable
-    demo_detailed = os.environ.get("DEMO_DETAILED", "false").lower() == "true"
-    if demo_detailed:
-        print("\n[INFO] Running with detailed output enabled (DEMO_DETAILED=true)")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output",
+    )
 
-    print("\n" + "-"*60)
-    print("Starting scenario execution...")
-    print("-"*60)
+    parser.add_argument(
+        "workflow",
+        metavar="WORKFLOW",
+        help="Workflow to execute",
+    )
 
-    # Run all scenarios in order
-    # The verify command (docker ps) is skipped automatically
-    for cmd, description in SCENARIO_COMMANDS:
-        # Skip the docker ps verify command - its failure is expected on first run
-        # and will trigger the ubuntu scenario to run first
-        if "docker ps" in str(cmd):
-            continue
+    args = parser.parse_args()
 
-        run_command(cmd, description)
+    global VERBOSE
+    VERBOSE = args.verbose
 
-    print("\n" + "="*60)
-    print("✅ ALL SCENARIOS COMPLETED SUCCESSFULLY!")
-    print("="*60)
-    print()
-    print("Summary:")
-    print("  ✓ default (localhost) - Quick tests on host")
-    print("  ✓ ubuntu (Docker)      - Container prepared and cached")
-    print("  ✓ ubuntu26_ssh         - SSH role testing completed")
-    print("="*60)
-
-    sys.exit(0)
-
+    if args.workflow not in COMMANDS:
+        parser.error(f"Unknown workflow: {args.workflow}")
+    return run_task(args.workflow)
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\n\n⚠️  Execution interrupted by user (Ctrl+C)")
-        print("Cleaning up...")
-        try:
-            run_command(
-                ["molecule", "destroy", "-s", "default", "ubuntu", "ubuntu26_ssh"],
-                "Destroy all scenarios (cleanup on interrupt)",
-                check=False
-            )
-        except:
-            pass
-        sys.exit(130)  # Standard exit code for Ctrl+C
-    except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
-        sys.exit(1)
+    sys.exit(main())
