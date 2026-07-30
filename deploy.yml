@@ -1,0 +1,31 @@
+---
+- name: Deploy Home Network Observability Stack
+  hosts: all
+  gather_facts: true
+  vars:
+    demo_detailed: "{{ demo_detailed_raw | default('false') | bool }}"
+    ansible_python_interpreter: auto_silent
+    ansible_connection: ssh
+    ansible_ssh_private_key_file: "{{ lookup('env', 'ANSIBLE_PRIVATE_KEY_FILE') }}"
+
+  pre_tasks:
+    - name: Dump effective Ansible Roles Path
+      ansible.builtin.shell: |
+        ansible-config dump | grep DEFAULT_ROLES_PATH | sed 's/\x1b\[[0-9;]*m//g'
+      args:
+        executable: /bin/bash
+      register: config_dump
+      changed_when: false
+
+    - name: Show Warning if required env variables not set
+      ansible.builtin.debug:
+        msg: "WARN: Env Var MOLECULE_HOST_VARS_DIR not found. Did you source .env??"
+      when: lookup('ansible.builtin.env', 'MOLECULE_HOST_VARS_DIR') == ''
+
+  roles:
+    - name: ssh_keys
+    - name: docker_install
+    - name: node_exporter_native
+    - name: prometheus_docker
+    - name: loki_alloy
+    - name: grafana_docker

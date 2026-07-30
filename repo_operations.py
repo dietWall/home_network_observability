@@ -29,6 +29,12 @@ COMMANDS = {
             "molecule converge -s ubuntu26_ssh",
             ],
         },
+        "deploy": {
+        "description": "Deploys the application according inventory",
+        "steps": [
+            "ansible-playbook deploy.yml -i ansible_template/inventory/hosts.yml",
+            ],
+        },
 
         "quick_test": {
         "description": "Runs some common linux commands",
@@ -62,8 +68,8 @@ COMMANDS = {
         "setup_grafana_data_prod" : {
             "description": "Adds Datasources/Dashboards to grafana in prod",
             "steps" : [
-                f"gcx datasources create -f {repo_root()}/gcx_grafana/datasources/prometheus.yml",
-                f"gcx datasources create -f {repo_root()}/gcx_grafana/datasources/loki.yml",
+                # f"gcx datasources create -f {repo_root()}/gcx_grafana/datasources/prometheus.yml",
+                # f"gcx datasources create -f {repo_root()}/gcx_grafana/datasources/loki.yml",
                 f"{repo_root()}/gcx_grafana/setup_grafana.py --command put_repository --url http://zeus-lat:3000"
             ]
         }
