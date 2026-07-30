@@ -1,10 +1,8 @@
 # Home Network Observability
 
-Ansible-based automation framework for deploying and testing a home network observability stack.
+Implementation of a home network observability stack based on a reusable Ansible automation template.
 
 The project focuses on reproducible infrastructure provisioning, real SSH-based integration testing with Molecule, and GitOps-friendly infrastructure management.
-
-The project uses Molecule for testing playbooks against real SSH connections to validate provisioning and operational stages.
 
 An external inventory is included as a Git submodule, keeping infrastructure definitions separate from automation code.
 
@@ -13,9 +11,18 @@ An external inventory is included as a Git submodule, keeping infrastructure def
 - reproducible infrastructure provisioning
 - real SSH integration testing with Molecule
 - Full Ansible Vault support
-- external inventory repository
+- external inventory managed as a Git submodule
 - GitOps-friendly project structure
 - reusable deployment helper scripts
+
+# Architecture
+
+The project is structured around four independent components:
+
+- **Automation** — Ansible roles and playbooks
+- **Testing** — Molecule scenarios with real SSH connections
+- **Infrastructure** — External inventory managed as a Git submodule
+- **Secrets** — Ansible Vault for all credentials and sensitive configuration
 
 ---
 
@@ -23,7 +30,7 @@ An external inventory is included as a Git submodule, keeping infrastructure def
 
 ### Create and Prepare the Test Environment
 
-This creates the reference host and performs initial server configuration:
+This creates a docker container and performs initial server configuration:
 
 - creates the administrative user
 - installs and configures OpenSSH
@@ -38,7 +45,7 @@ molecule converge -s ubuntu
 
 ### Validate the SSH Workflow
 
-After provisioning, deploy all services over SSH to molecule container:
+After provisioning, validate deployment over a real SSH connection:
 
 ```bash
 molecule converge -s ubuntu26_ssh
@@ -116,4 +123,5 @@ source .env
 
 Potential extensions:
 
-CI execution of Molecule scenarios
+- CI execution of Molecule scenarios
+- multiple hosts in inventory
