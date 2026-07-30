@@ -239,7 +239,8 @@ def main():
                 print(f"{len(secrets)} Variables are available")
 
                 token = create_service_account(secrets["vault_grafana_admin_user"],
-                                    secrets["vault_grafana_admin_password"])
+                                    secrets["vault_grafana_admin_password"]
+                                    , grafana_url=args.url)
 
                 write_gcx_config_file(args.url, token=token)
             else:
