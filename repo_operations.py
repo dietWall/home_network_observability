@@ -8,13 +8,11 @@ VERBOSE = False
 
 def repo_root():
     result = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True)
-    print(result.stdout.decode().strip())
     return result.stdout.decode().strip()
 
 COMMANDS = {
     # if we expect a different returncode than 0 from one of the commands
     # than we can extend the data structure with expected_returncode (default 0)
-
     "test": {
         "description": "Reruns the ubuntu scenario without a full rebuild",
         "steps": [
@@ -22,7 +20,7 @@ COMMANDS = {
             ],
         },
 
-    "rebuild_ubuntu": {
+    "rebuild": {
         "description": "Recreate the whole environment",
         "steps": [
             "molecule destroy -s ubuntu",
@@ -41,13 +39,32 @@ COMMANDS = {
             "non_existing_binary_to_see_error_processing"
             ],
         },
-        "setup_grafana" : {
-            "description": "creates a service account in grafana",
+        "setup_grafana_in_molecule" : {
+            "description": "Creates a service account in molecule env, running a second time fails",
             "steps" : [
-                f"{repo_root()}/gcx_grafana/setup_grafana.py --command create_service_account",
-                f"gcx datasources create -f {repo_root()}/gcx_grafana/datasources/datasources.yml",
+                f"{repo_root()}/gcx_grafana/setup_grafana.py --command create_service_account --url http://localhost:3000"
+            ]
+        },
+        "setup_grafana_in_prod" : {
+            "description": "Creates a service account in prod env, running a second time fails",
+            "steps" : [
+                f"{repo_root()}/gcx_grafana/setup_grafana.py --command create_service_account --url http://zeus-lat:3000"
+            ]
+        },
+        "setup_grafana_data_test" : {
+            "description": "Adds Datasources/Dashboards to grafana in molecule",
+            "steps" : [
+                f"gcx datasources create -f {repo_root()}/gcx_grafana/datasources/prometheus.yml",
                 f"gcx datasources create -f {repo_root()}/gcx_grafana/datasources/loki.yml",
-                f"{repo_root()}/gcx_grafana/setup_grafana.py --command put_repository",
+                f"{repo_root()}/gcx_grafana/setup_grafana.py --command put_repository --url http://localhost:3000"
+            ]
+        },
+        "setup_grafana_data_prod" : {
+            "description": "Adds Datasources/Dashboards to grafana in prod",
+            "steps" : [
+                f"gcx datasources create -f {repo_root()}/gcx_grafana/datasources/prometheus.yml",
+                f"gcx datasources create -f {repo_root()}/gcx_grafana/datasources/loki.yml",
+                f"{repo_root()}/gcx_grafana/setup_grafana.py --command put_repository --url http://zeus-lat:3000"
             ]
         }
 }
@@ -92,7 +109,7 @@ def run_command(command):
     if result.returncode != 0:
         print()
         print("ERROR: Command failed")
-        print(f"  Exit code: {result.returncode}")
+        print(f"  Return code: {result.returncode}")
         print(f"  Command:   {command}")
         return False
     return True
@@ -108,11 +125,10 @@ def run_task(task_name):
 
 def main():
     
-    workflow_help = "Available workflows:"
-
+    workflow_help = "Available workflows:" + "\n"
     for name, workflow in COMMANDS.items():
         description = workflow.get("description", "")
-        workflow_help += f"  {name:<20} {description}\n"
+        workflow_help += f"{name:<30} | {description}\n"
 
     import argparse
     parser = argparse.ArgumentParser(

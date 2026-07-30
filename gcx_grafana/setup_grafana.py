@@ -78,7 +78,7 @@ def get_git_root():
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError:
-        print("[ERROR] repo_root could not be found!, cannot proceed", file=sys.stderr)
+        print("repo_root could not be found!, cannot proceed", file=sys.stderr)
         sys.exit(1)
 
 VAULT_PASSWORD = os.environ.get("ANSIBLE_VAULT_PASS")
@@ -92,8 +92,8 @@ def put_repo(config_file):
     try:
         secrets = load_vault_variables(GITHUB_ACCESS_TOKEN_VAULT_FILE, password)
         if secrets and isinstance(secrets, dict):
-            print(f"[SUCCESS] Vault '{GITHUB_ACCESS_TOKEN_VAULT_FILE}' is opened and decrypted")
-            print(f"[INFO] {len(secrets)} Variables are available")
+            print(f"Vault '{GITHUB_ACCESS_TOKEN_VAULT_FILE}' is opened and decrypted")
+            print(f"{len(secrets)} Variables are available")
             server, token = get_grafana_credentials()
             grafana = GrafanaClient(server, token)
             with open(config_file, "r", encoding="utf-8") as file:
@@ -102,10 +102,10 @@ def put_repo(config_file):
                 data["secure"]["token"]["create"] = github_token["github_token"]
                 grafana.put_repository(repository=data, namespace="default")
         else:
-            print(f"[ERROR] required variables have not been found in {VAULT_FILE}", file=sys.stderr)
+            print(f"required variables have not been found in {VAULT_FILE}", file=sys.stderr)
             sys.exit(1)
     except Exception as e:
-        print(f"[ERROR] Eception {e}, while processing vault at: {VAULT_FILE}", file=sys.stderr)
+        print(f"Eception {e}, while processing vault at: {VAULT_FILE}", file=sys.stderr)
         sys.exit(1)
 
 def load_vault_pass():
@@ -236,18 +236,18 @@ def main():
             secrets = load_vault_variables(VAULT_FILE, password)
             if secrets and isinstance(secrets, dict):
                 # count the keys
-                print(f"[SUCCESS] Vault '{VAULT_FILE}' is opened and decrypted")
-                print(f"[INFO] {len(secrets)} Variables are available")
+                print(f"Vault '{VAULT_FILE}' is opened and decrypted")
+                print(f"{len(secrets)} Variables are available")
 
                 token = create_service_account(secrets["vault_grafana_admin_user"],
                                     secrets["vault_grafana_admin_password"])
 
                 write_gcx_config_file(args.url, token=token)
             else:
-                print(f"[ERROR] required variables have not been found in {VAULT_FILE}", file=sys.stderr)
+                print(f"required variables have not been found in {VAULT_FILE}", file=sys.stderr)
                 sys.exit(1)
         except Exception as e:
-            print(f"[ERROR] Eception {e}, while processing vault at: {VAULT_FILE}", file=sys.stderr)
+            print(f"Eception {e}, while processing vault at: {VAULT_FILE}", file=sys.stderr)
             sys.exit(1)
     elif args.command == "put_repository":
         token = get_grafana_credentials()

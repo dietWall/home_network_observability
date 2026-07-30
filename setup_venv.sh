@@ -4,8 +4,8 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="${SCRIPT_DIR}/venv"
+SCRIPT_DIR="$(git rev-parse --show-toplevel)"
+VENV_DIR="${SCRIPT_DIR}/.venv"
 
 echo "=== Creating virtual environment ==="
 python3 -m venv "${VENV_DIR}"
@@ -22,7 +22,7 @@ if [ -f "${SCRIPT_DIR}/requirements.txt" ]; then
     pip install -r "${SCRIPT_DIR}/requirements.txt"
 else
     echo "No requirements.txt found, installing core dependencies..."
-    pip install molecule molecule-docker
+    pip install molecule molecule-plugins
 fi
 
 echo ""
@@ -41,4 +41,4 @@ echo "  molecule converge -s default        # Localhost scenario"
 echo "  molecule converge -s ubuntu         # Docker container scenario"
 echo "  molecule converge -s ubuntu26_ssh   # SSH-based role testing"
 echo "There is also a convinience script, which runs all playbooks in the right order"
-echo "  ./ansible_template/run_molecule_scenarios.py"
+echo "  ./repo_operations.py --help"
