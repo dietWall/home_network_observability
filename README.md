@@ -1,16 +1,27 @@
 # Home Network Observability
 
-Ansible automation for deploying and managing home network observability services: Grafana, Loki, Alloy, Prometheus, Node-Exporter, and Docker.
+Ansible-based automation framework for deploying and testing a home network observability stack.
+
+The project focuses on reproducible infrastructure provisioning, real SSH-based integration testing with Molecule, and GitOps-friendly infrastructure management.
 
 The project uses Molecule for testing playbooks against real SSH connections to validate provisioning and operational stages.
 
 An external inventory is included as a Git submodule, keeping infrastructure definitions separate from automation code.
 
+# Features
+
+- reproducible infrastructure provisioning
+- real SSH integration testing with Molecule
+- Full Ansible Vault support
+- external inventory repository
+- GitOps-friendly project structure
+- reusable deployment helper scripts
+
 ---
 
 ## Deployment
 
-### Provision the Reference Host
+### Create and Prepare the Test Environment
 
 This creates the reference host and performs initial server configuration:
 
@@ -21,12 +32,13 @@ This creates the reference host and performs initial server configuration:
 - configures privilege escalation
 
 ```bash
+molecule prepare -s ubuntu
 molecule converge -s ubuntu
 ```
 
 ### Validate the SSH Workflow
 
-After provisioning, validate that all services work over SSH:
+After provisioning, deploy all services over SSH to molecule container:
 
 ```bash
 molecule converge -s ubuntu26_ssh
@@ -44,7 +56,7 @@ This connects exclusively through SSH (127.0.0.1:2222) and verifies:
 From the project root:
 
 ```bash
-python run_molecule_scenarios.py all
+python run_molecule_scenarios.py rebuild
 ```
 
 This performs the complete workflow in order:
@@ -58,12 +70,6 @@ This performs the complete workflow in order:
 
 ```bash
 molecule destroy -s ubuntu
-```
-
-Or remove all resources:
-
-```bash
-python run_molecule_scenarios.py clean
 ```
 
 ---
@@ -87,11 +93,9 @@ source .env
 │   ├── roles/
 │   ├── molecule/
 │   ├── setup_venv.sh
-│   └── ...
-├── ansible/                  # Deployed/inventories
+│   └── 
 ├── roles/                    # Reusable Ansible roles
 ├── molecule/                 # Molecule scenarios
-├── molecule.yml              # Molecule configuration
 └── repo_operations.py        # Deployment operations
 ```
 
@@ -112,9 +116,4 @@ source .env
 
 Potential extensions:
 
-- GitHub Actions integration
-- linting and security pipelines
-- automatic documentation generation
-- additional inventory layouts
-
-Contributions and ideas are welcome.
+CI execution of Molecule scenarios
