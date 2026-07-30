@@ -42,18 +42,6 @@ class GrafanaClient:
             # don´t raise, caller should handle
         return result
 
-    def get_repository(
-        self,
-        name: str,
-        namespace: str = "default",
-    ) -> dict:
-        path = (
-            "/apis/provisioning.grafana.app/"
-            "v0alpha1/"
-            f"namespaces/{namespace}/repositories/{name}"
-        )
-        return self.get(path)
-
     def put_repository(
         self,
         repository: dict,
