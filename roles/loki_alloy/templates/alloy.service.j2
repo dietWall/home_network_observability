@@ -1,0 +1,37 @@
+[Unit]
+Description=Grafana Alloy Log Collector Agent
+After=network.target docker.socket loki.service
+Requires=docker.socket
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker rm -f alloy
+
+#ExecStart=/usr/bin/docker run --rm --name alloy \
+#  --network monitoring_net \
+#  -v /var/log:/var/log:ro \
+#  -v /var/log/journal:/var/log/journal:ro \
+#  -v /run/log/journal:/run/log/journal:ro \
+#  -v /var/run/docker.sock:/var/run/docker.sock \
+#  -v /etc/alloy:/etc/alloy:ro \
+#  grafana/alloy:latest run --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+  
+ExecStart=/usr/bin/docker run --rm --name alloy \
+  --network monitoring_net \
+  --user root \
+  -v /var/log:/var/log:ro \
+  -v /var/log/journal:/var/log/journal:ro \
+  -v /run/log/journal:/run/log/journal:ro \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /etc/alloy:/etc/alloy:ro \
+  grafana/alloy:latest run --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+
+
+ExecStop=/usr/bin/docker stop -t 5 alloy
+Restart=on-failure
+RestartSec=5s
+Environment=DOCKER_HOST=unix:///var/run/docker.sock
+Environment=DOCKER_DEFAULT_PLATFORM=linux/amd64
+
+[Install]
+WantedBy=multi-user.target

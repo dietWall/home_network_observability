@@ -1,0 +1,11 @@
+---
+# Explizite Pfade für die Tasks
+grafana_docker_data_volume:
+  host_path: "/opt/grafana/data"
+  container_path: "/var/lib/grafana"
+  owner: "472"
+  group: "472"
+
+# Kombinierte Liste NUR für das Systemd-Template
+grafana_docker_volumes:
+  - "{{ grafana_docker_data_volume }}"

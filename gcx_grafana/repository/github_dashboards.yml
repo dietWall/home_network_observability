@@ -1,0 +1,18 @@
+apiVersion: provisioning.grafana.app/v0alpha1
+kind: Repository
+metadata:
+  name: 'mein-github-repo'
+spec:
+  type: github
+  github:
+    url: 'https://github.com/dietWall/grafana-dashboards.git'
+    branch: 'master'
+  sync:
+      enabled: true
+      intervalSeconds: 10
+      target: "folderless"
+  title: mein-github-repo
+  workflows:
+    - branch
+secure:
+  token: { create: "" }

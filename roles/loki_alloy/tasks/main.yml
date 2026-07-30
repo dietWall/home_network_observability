@@ -1,0 +1,195 @@
+---
+# Loki & Grafana Alloy Installation Tasks
+# Purpose: Install Loki (log server) and Grafana Alloy (log agent)
+# Uses only builtin modules: ansible.builtin.file, ansible.builtin.uri, community.docker, ansible.builtin.template
+
+# ============================================================================
+# PHASE 1: GRAFANA LOKI (LOG-SERVER) INSTALLATION
+# ============================================================================
+
+- name: Create Loki configuration directory on the host
+  ansible.builtin.file:
+    path: "/opt/loki/config"
+    state: directory
+    owner: "10001"  # Standard user ID in Loki Docker image
+    group: "10001"
+    mode: '0755'
+  become: true
+
+- name: Create Loki data directory on the host
+  ansible.builtin.file:
+    path: "/opt/loki/data"
+    state: directory
+    owner: "10001"
+    group: "10001"
+    mode: '0755'
+  become: true
+
+# for some reason this is required:
+# container does not start if this task is missing
+# so th
+- name: Remove accidental Loki config directory
+  ansible.builtin.file:
+    path: "/opt/loki/config/loki.yml"
+    state: absent
+  become: true
+
+- name: Generate loki.yml from template
+  ansible.builtin.template:
+    src: loki.yml.j2
+    dest: "/opt/loki/config/loki.yml"
+    owner: "10001"
+    group: "10001"
+    mode: '0644'
+  become: true
+
+- name: Pull Loki Docker image
+  ansible.builtin.command:
+    cmd: docker pull grafana/loki:latest
+  changed_when: false
+
+- name: Verzeichnisse für Loki auf dem Host sicherstellen
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "10001" # Standard-UID für Loki im offiziellen Docker-Image
+    group: "10001"
+    mode: '0755'
+  become: true
+  loop:
+    - /opt/loki/config
+    - /opt/loki/data
+
+- name: Systemd Unit-Datei für Loki erstellen
+  ansible.builtin.template:
+    src: loki.service.j2
+    dest: /etc/systemd/system/loki.service
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  notify: Loki Dienst neustarten
+
+- name: Systemd-Daemon neu laden
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+
+- name: Systemd-Dienst loki aktivieren und starten
+  ansible.builtin.systemd:
+    name: loki
+    enabled: true
+    state: started
+  become: true
+
+- name: Warten bis Loki auf Port 3100 antwortet
+  ansible.builtin.uri:
+    url: "http://localhost:3100/ready"
+    status_code: [200, 503] # 503 ist okay, solange Loki noch initialisiert
+  register: loki_health
+  until: loki_health.status in [200, 503]
+  retries: 30
+  delay: 1
+
+- name: Validation Step 1 - Wait until Loki API is ready
+  ansible.builtin.uri:
+    url: "http://localhost:3100/ready"
+    status_code: 200
+  register: loki_health
+  until: loki_health.status == 200
+  retries: 30
+  delay: 1
+
+# ============================================================================
+# PHASE 2: GRAFANA ALLOY (LOG-AGENT) INSTALLATION
+# ============================================================================
+- name: Grafana ASCII GPG-Schlüssel temporär herunterladen
+  ansible.builtin.get_url:
+    url: https://apt.grafana.com/gpg.key
+    dest: /tmp/grafana.asc
+    mode: '0644'
+  become: true
+
+- name: GPG-Schlüssel dearmoren und im System-Keyring binär ablegen
+  ansible.builtin.command:
+    cmd: gpg --dearmor -o /usr/share/keyrings/grafana.gpg /tmp/grafana.asc
+    creates: /usr/share/keyrings/grafana.gpg # Verhindert mehrfaches Ausführen
+  become: true
+
+- name: Offizielles Grafana APT-Repository im modernen DEB822-Format hinzufügen
+  ansible.builtin.deb822_repository:
+    name: grafana
+    types: deb
+    uris: https://apt.grafana.com
+    suites: stable
+    components: main
+    signed_by: /usr/share/keyrings/grafana.gpg # Verweist auf die saubere Binärdatei
+    state: present
+  become: true
+
+- name: Grafana Alloy Paket installieren
+  ansible.builtin.apt:
+    name: alloy
+    state: present
+    update_cache: true
+  become: true
+
+- name: Native Konfigurationsdatei config.alloy bereitstellen
+  ansible.builtin.template:
+    src: config.alloy.j2
+    # Das native Paket erwartet die Konfiguration unter diesem Pfad:
+    dest: /etc/alloy/config.alloy
+    owner: alloy
+    group: alloy
+    mode: '0640'
+  become: true
+  notify: Alloy Dienst neustarten
+
+- name: Nativen Alloy-Dienst aktivieren und starten
+  ansible.builtin.systemd:
+    name: alloy
+    enabled: true
+    state: started
+  become: true
+
+- name: "Flush handlers: restarts imediately"
+  ansible.builtin.meta: flush_handlers
+# ============================================================================
+# PHASE 3: INTEGRATION TEST & STATUS REPORT (USING ONLY BUILTIN MODULES)
+# ============================================================================
+
+- name: Wait briefly for Alloy to transfer initial Systemd Logs to Loki
+  ansible.builtin.pause:
+    seconds: 5
+
+- name: Validation Step 2 - Query Systemd Logs directly from Loki API
+  ansible.builtin.uri:
+    url: "http://localhost:3100/loki/api/v1/query_range?query={{ '{job=\"systemd-journal\"}' | urlencode }}&limit=3"
+    method: GET
+    return_content: true
+    status_code: 200
+  register: loki_log_query
+
+- name: Extract and format raw log entries
+  ansible.builtin.set_fact:
+    formatted_logs: >-
+      {% set logs = [] %}
+      {% if loki_log_query.json.data.result | length > 0 %}
+        {% for stream in loki_log_query.json.data.result %}
+          {% for value in stream.values %}
+            {% set _ = logs.append(value[1]) %}
+          {% endfor %}
+        {% endfor %}
+      {% endif %}
+      {{ logs }}
+
+- name: Check the log flow (abort if no logs arrive)
+  ansible.builtin.assert:
+    that:
+      - formatted_logs | length > 0
+    fail_msg: "Error: Loki has not received Systemd logs! Check the Alloy configuration."
+    success_msg: "Success! Systemd logs are flowing successfully into Loki."
+
+- name: LOki LIVE SYSTEMD-LOG EXTRACT
+  ansible.builtin.debug:
+    msg: "{{ formatted_logs }}"

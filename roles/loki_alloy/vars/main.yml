@@ -1,0 +1,21 @@
+---
+# Role-specific variables for loki_alloy role
+
+# Loki user/group for configuration
+loki_user: "10001"
+loki_group: "10001"
+
+# Loki directories
+loki_config_path: "/opt/loki/config"
+loki_data_path: "/opt/loki/data"
+
+# Alloy directories
+alloy_config_path: "/opt/alloy/config"
+
+# Loki API endpoints
+loki_ready_url: "http://localhost:3100/ready"
+loki_query_url: "http://localhost:3100/loki/api/v1/query_range"
+loki_push_url: "http://localhost:3100/loki/api/v1/push"
+
+# Container labels
+container_job_label: "systemd-journal"

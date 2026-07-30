@@ -10,7 +10,7 @@ driver:
   name: docker
 
 platforms:
-  - name: your-server
+  - name: zeus-lat
     image: geerlingguy/docker-ubuntu2604-ansible:latest
     pre_build_image: true
     command: /lib/systemd/systemd
@@ -22,6 +22,9 @@ platforms:
     cgroupns_mode: host
     published_ports:
       - "0.0.0.0:2222:22/tcp"
+      - "3000:3000/tcp"  # Grafana Dashboard (http://localhost:3000)
+      - "9090:9090/tcp"  # Prometheus UI   (http://localhost:9090)
+      - "9100:9100/tcp"  # Node Exporter   (http://localhost:9100/metrics)
     connection: docker
     ansible_python_interpreter: auto_silent
 
@@ -42,7 +45,7 @@ provisioner:
       host_vars: "${MOLECULE_HOST_VARS_DIR}"
 
   host_vars:
-    your_server:
+    zeus-lat:
       # this is the initial user to start the playbooks
       ansible_connection: docker
       ansible_user: root

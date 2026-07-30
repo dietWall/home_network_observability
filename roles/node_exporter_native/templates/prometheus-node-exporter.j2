@@ -1,0 +1,2 @@
+# Modified by Ansible - Local adjustments will be overwritten
+ARGS="{% for collector in node_exporter_native_collectors.enabled %}--collector.{{ collector }} {% endfor %}{% for collector in node_exporter_native_collectors.disabled %}--no-collector.{{ collector }} {% endfor %}"

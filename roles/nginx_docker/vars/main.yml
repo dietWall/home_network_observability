@@ -1,3 +1,0 @@
----
-# Role-specific variables for nginx_docker
-# Override defaults/main.yml for specific environments

@@ -1,9 +1,0 @@
----
-# Handlers for Nginx Docker role
-
-- name: Restart Nginx service
-  ansible.builtin.systemd:
-    name: nginx
-    state: restarted
-    daemon_reload: true
-  become: true

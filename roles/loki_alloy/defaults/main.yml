@@ -1,0 +1,24 @@
+---
+# Default variables for loki_alloy role
+
+# Loki configuration settings
+loki_config_dir: "/opt/loki/config"
+loki_config_file: "loki.yml"
+loki_image: grafana/loki:latest
+loki_container_name: loki
+loki_container_port: "3100"
+
+# Alloy configuration settings
+alloy_config_dir: "/opt/alloy/config"
+alloy_config_file: "config.alloy"
+alloy_image: grafana/alloy:latest
+alloy_container_name: alloy
+
+# Loki query settings
+loki_query_range_config:
+  query: '{job="systemd-journal"}'
+  limit: 3
+
+# Systemd journal labels
+systemd_journal_job: "systemd-journal"
+systemd_journal_host: "{{ inventory_hostname }}"

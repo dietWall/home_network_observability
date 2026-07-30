@@ -1,0 +1,10 @@
+---
+# Default values for the Prometheus role
+prometheus_docker_config_dir: "/etc/prometheus"
+prometheus_docker_global_scrape_interval: "15s"
+prometheus_docker_global_evaluation_interval: "15s"
+
+prometheus_docker_scrape_targets_file: "{{ role_path }}/../../scrape_targets.yml"
+
+# fallback to an empty list
+prometheus_docker_monitored_hosts: []

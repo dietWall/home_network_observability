@@ -1,0 +1,22 @@
+# Ansible managed
+global:
+  scrape_interval: "{{ prometheus_docker_global_scrape_interval | default('15s') }}"
+  evaluation_interval: "{{ prometheus_docker_global_evaluation_interval | default('15s') }}"
+
+scrape_configs:
+  # Lokaler Prometheus-Self-Scraping-Job
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+{# Dynamic jobs: don´t change the whitespaces before loops #}
+
+{% for target in prometheus_scrape_targets %}
+{%- for exporter in target.exporters %}
+  - job_name: '{{ exporter.type }}_{{ target.name }}'
+    scrape_interval: '{{ exporter.scrape_interval | default("15s") }}'
+    metrics_path: '{{ exporter.endpoint | default("/metrics") }}'
+    static_configs:
+      - targets: ['{{ target.ip }}:{{ exporter.port }}']
+{% endfor %}
+{% endfor %}

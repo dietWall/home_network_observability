@@ -1,0 +1,28 @@
+[Unit]
+Description=Prometheus Monitoring System
+After=network.target docker.socket
+Requires=docker.socket
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker rm -f prometheus
+
+ExecStart=/usr/bin/docker run --rm --name prometheus \
+  --network monitoring_net \
+  --add-host=zeus-lat:host-gateway \
+  -p 9090:9090 \
+  -v /opt/prometheus/config:/etc/prometheus \
+  -v /opt/prometheus/data:/prometheus \
+  prom/prometheus:latest \
+  --config.file=/etc/prometheus/prometheus.yml \
+  --storage.tsdb.path=/prometheus \
+  --web.enable-lifecycle
+
+ExecStop=/usr/bin/docker stop -t 2 prometheus
+Restart=on-failure
+RestartSec=5s
+Environment=DOCKER_HOST=unix:///var/run/docker.sock
+Environment=DOCKER_DEFAULT_PLATFORM=linux/amd64
+
+[Install]
+WantedBy=multi-user.target

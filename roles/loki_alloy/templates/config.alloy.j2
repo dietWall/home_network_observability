@@ -1,0 +1,14 @@
+// {{ ansible_managed }}
+// Grafana Alloy - Minimalistischer Systemd-Log-Collector
+
+// 1. Systemd Journal als EINZIGE Logquelle
+loki.source.journal "systemd_logs" {
+  forward_to = [loki.write.loki_server.receiver]
+}
+
+// 2. Versand an den Loki-Dienst über das interne DNS-Netzwerk
+loki.write "loki_server" {
+  endpoint {
+    url = "http://127.0.0.1:3100/loki/api/v1/push"
+  }
+}
