@@ -44,11 +44,10 @@ COMMANDS = {
         "setup_grafana" : {
             "description": "creates a service account in grafana",
             "steps" : [
-                f"{repo_root()}/gcx_grafana/create_service_account.py",
+                f"{repo_root()}/gcx_grafana/setup_grafana.py --command create_service_account",
                 f"gcx datasources create -f {repo_root()}/gcx_grafana/datasources/datasources.yml",
                 f"gcx datasources create -f {repo_root()}/gcx_grafana/datasources/loki.yml",
-                # this works with my local file, but I need to remove the github pat from there first
-                # f"gcx resources push --path {repo_root()}/gcx_grafana/repository/github_dashboards.yml"
+                f"{repo_root()}/gcx_grafana/setup_grafana.py --command put_repository",
             ]
         }
 }

@@ -29,27 +29,9 @@ class GrafanaClient:
             "Accept": "application/json",
         })
 
-    # def request(
-    #     self,
-    #     method: str,
-    #     path: str,
-    #     data: dict | None = None,
-    #     ) -> dict:
-        
-        
-    #     response.raise_for_status()
-
-    def get(self, path: str) -> dict:
-        # return self.request("GET", path)
-        #self.session.get()
-        pass
-
 
     def put(self, path: str, data: dict) -> requests.Response:
-        result = self.session.put(
-            self.server + path,
-            json=data
-        )
+        result = self.session.put(self.server + path, json=data)
 
         try:
             result.raise_for_status()
@@ -59,10 +41,6 @@ class GrafanaClient:
             print(f"Response: {result.text}")
             # don´t raise, caller should handle
         return result
-
-
-    def post(self, path: str, data: dict) -> dict:
-        return self.request("POST", path, data)
 
     def get_repository(
         self,
@@ -88,8 +66,6 @@ class GrafanaClient:
         result = self.put(path, repository)
         print(f"Status Code: {result.status_code}")
         print(f"Output: {result.text}")
-        
-
 
 def get_git_root():
     """ Returns absolute <repo_root> path"""
@@ -109,7 +85,6 @@ VAULT_PASSWORD = os.environ.get("ANSIBLE_VAULT_PASS")
 VAULT_FILE = f"{get_git_root()}/ansible_template/inventory/host_vars/zeus-lat/grafana_vault.yml"
 GITHUB_ACCESS_TOKEN_VAULT_FILE = f"{get_git_root()}/ansible_template/inventory/host_vars/zeus-lat/grafana_dashboards_github_vault.yml"
 
-
 def put_repo(config_file):
     global GITHUB_ACCESS_TOKEN_VAULT_FILE
     password = load_vault_pass()
@@ -125,9 +100,6 @@ def put_repo(config_file):
                 data = yaml.safe_load(file)
                 github_token = load_vault_variables(GITHUB_ACCESS_TOKEN_VAULT_FILE, password=password)
                 data["secure"]["token"]["create"] = github_token["github_token"]
-                print(data)
-                import json
-                print(json.dumps(data, indent=2))
                 grafana.put_repository(repository=data, namespace="default")
         else:
             print(f"[ERROR] required variables have not been found in {VAULT_FILE}", file=sys.stderr)
@@ -135,8 +107,6 @@ def put_repo(config_file):
     except Exception as e:
         print(f"[ERROR] Eception {e}, while processing vault at: {VAULT_FILE}", file=sys.stderr)
         sys.exit(1)
-
-
 
 def load_vault_pass():
     global VAULT_PASSWORD
