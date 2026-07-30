@@ -36,7 +36,7 @@ class GrafanaClient:
         try:
             result.raise_for_status()
         except requests.exceptions.HTTPError:
-            print(f"[ERROR]: PUT request to {path} failed")
+            print(f"PUT request to {path} failed")
             print(f"Status: {result.status_code}")
             print(f"Response: {result.text}")
             # don´t raise, caller should handle
@@ -172,7 +172,6 @@ def create_service_account(admin_user: str = "admin",
     )
     response.raise_for_status()
     token = response.json()["key"]
-    print(f"Token: {token}")
     return token
 
 from pathlib import Path
@@ -252,7 +251,6 @@ def main():
     elif args.command == "put_repository":
         token = get_grafana_credentials()
         put_repo(f"{get_git_root()}/gcx_grafana/repository/github_dashboards.yml")
-
 
 
 if __name__ == "__main__":
